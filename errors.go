@@ -8,12 +8,13 @@ import (
 )
 
 type errorPlus struct {
-	Cause string
-	Trace string
+	Cause   string
+	Trace   string
+	Code    int
 	Requeue bool
 }
 
-func TraceThis() string{
+func TraceThis() string {
 
 	pc := make([]uintptr, 10)
 	runtime.Callers(2, pc)
@@ -25,20 +26,25 @@ func TraceThis() string{
 
 func WrapRequeue(input interface{}, trace string) error {
 
-	plus := errorPlus{
-		Trace:trace,
-		Requeue:true,
+	var ePlus errorPlus
+
+	if custom, ok := input.(string); ok {
+		ePlus.Cause = custom
 	}
 
-	if errorStr, ok := input.(string); ok {
-		plus.Cause = errorStr
+	if err, ok := input.(error); ok {
+		ePlus.Cause = err.Error()
 	}
 
-	if instance, ok := input.(error); ok {
-		plus.Cause = instance.Error()
+	if instance, ok := input.(errorPlus); ok {
+		ePlus.Code = instance.Code
+		ePlus.Cause = instance.Cause
 	}
 
-	encoded, err := json.Marshal(plus)
+	ePlus.Requeue = true
+	ePlus.Trace = trace
+
+	encoded, err := json.Marshal(ePlus)
 	if err != nil {
 		return err
 	}
@@ -46,20 +52,26 @@ func WrapRequeue(input interface{}, trace string) error {
 	return errors.New(string(encoded))
 }
 
-func Wrap(input interface{},trace string) error {
-	plus := errorPlus{
-		Trace:trace,
+func Wrap(input interface{}, trace string) error {
+
+	var ePlus errorPlus
+
+	if custom, ok := input.(string); ok {
+		ePlus.Cause = custom
 	}
 
-	if errorStr, ok := input.(string); ok {
-		plus.Cause = errorStr
+	if err, ok := input.(error); ok {
+		ePlus.Cause = err.Error()
 	}
 
-	if instance, ok := input.(error); ok {
-		plus.Cause = instance.Error()
+	if instance, ok := input.(errorPlus); ok {
+		ePlus.Code = instance.Code
+		ePlus.Cause = instance.Cause
 	}
 
-	encoded, err := json.Marshal(plus)
+	ePlus.Trace = trace
+
+	encoded, err := json.Marshal(ePlus)
 	if err != nil {
 		return err
 	}
@@ -109,7 +121,18 @@ func GetRequeue(input error) (bool, error) {
 	return plus.Requeue, nil
 }
 
-func Decode (input error) (*errorPlus, error) {
+func GetCode(input error) (int, error) {
+	if input == nil {
+		return 0, nil
+	}
+	ePlus, err := Decode(input)
+	if err != nil {
+		return 0, err
+	}
+	return ePlus.Code, nil
+}
+
+func Decode(input error) (*errorPlus, error) {
 
 	var plus errorPlus
 
@@ -119,5 +142,9 @@ func Decode (input error) (*errorPlus, error) {
 	}
 
 	return &plus, nil
+}
+
+func ErrWithCode(cause string, code int) interface{} {
+	return &errorPlus{Cause: cause, Code: code}
 }
 
