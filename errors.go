@@ -145,6 +145,6 @@ func Decode(input error) (*errorPlus, error) {
 }
 
 func ErrWithCode(cause string, code int) interface{} {
-	return &errorPlus{Cause: cause, Code: code}
+	return errorPlus{Cause: cause, Code: code}
 }
 
